@@ -356,33 +356,51 @@ class ResponseGenerator:
     
     def __init__(self, config: Dict):
         self.config = config
-        self.llm_config = config['models']['llm']
+        self.models_config = config['models']
+        self.llm_provider = self.models_config.get('llm_provider', 'groq')
         
-        # Initialize Groq client if available
+        # Initialize based on configured provider
         self.groq_client = None
+        self.deploy_client = None
+        
+        if self.llm_provider == 'groq':
+            self._initialize_groq()
+        elif self.llm_provider == 'databricks':
+            self._initialize_databricks()
+        else:
+            logger.warning(f"Unknown LLM provider: {self.llm_provider}. Falling back to Groq.")
+            self._initialize_groq()
+    
+    def _initialize_groq(self):
+        """Initialize Groq client"""
         if GROQ_AVAILABLE:
-            # Use the provided API key
-            groq_api_key = ""
             try:
-                self.groq_client = Groq(api_key=groq_api_key)
+                groq_config = self.models_config.get('groq', {})
+                api_key = groq_config.get('api_key', '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')
+                self.groq_client = Groq(api_key=api_key)
                 logger.info("Groq client initialized successfully")
             except Exception as e:
                 logger.error(f"Failed to initialize Groq client: {str(e)}")
                 self.groq_client = None
-        
-        # Fallback to Databricks if Groq not available
-        if not self.groq_client and MLFLOW_AVAILABLE:
+        else:
+            logger.warning("Groq library not available")
+    
+    def _initialize_databricks(self):
+        """Initialize Databricks client"""
+        if MLFLOW_AVAILABLE:
             try:
                 self.deploy_client = get_deploy_client("databricks")
-            except:
+                logger.info("Databricks client initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize Databricks client: {str(e)}")
                 self.deploy_client = None
         else:
-            self.deploy_client = None
+            logger.warning("MLflow library not available for Databricks")
     
     def generate_response(self, query: str, context: str, 
                          query_analysis: QueryAnalysis) -> Tuple[str, float]:
         """
-        Generate response using LLM
+        Generate response using configured LLM provider
         
         Args:
             query: User query
@@ -395,13 +413,19 @@ class ResponseGenerator:
         # Create prompt based on query type
         prompt = self._create_prompt(query, context, query_analysis)
         
-        # Generate response using Groq first, then fallback
-        if self.groq_client:
+        # Generate response using configured provider
+        if self.llm_provider == 'groq' and self.groq_client:
             response = self._call_groq_llm(prompt)
-        elif self.deploy_client:
+        elif self.llm_provider == 'databricks' and self.deploy_client:
             response = self._call_databricks_llm(prompt)
         else:
-            response = self._call_mock_llm(prompt)
+            # Fallback logic
+            if self.groq_client:
+                response = self._call_groq_llm(prompt)
+            elif self.deploy_client:
+                response = self._call_databricks_llm(prompt)
+            else:
+                response = self._call_mock_llm(prompt)
         
         # Calculate confidence score
         confidence = self._calculate_confidence(response, context, query)
@@ -452,7 +476,12 @@ Answer: I don't have enough context to answer this question accurately. Could yo
     def _call_groq_llm(self, prompt: str) -> str:
         """Call Groq API to generate response"""
         try:
-            # Use Groq's current models - llama-3.1-8b-instant is fast and current
+            groq_config = self.models_config.get('groq', {})
+            model = groq_config.get('model', 'llama-3.1-8b-instant')
+            max_tokens = groq_config.get('max_tokens', 1024)
+            temperature = groq_config.get('temperature', 0.1)
+            top_p = groq_config.get('top_p', 0.9)
+            
             response = self.groq_client.chat.completions.create(
                 messages=[
                     {
@@ -460,10 +489,10 @@ Answer: I don't have enough context to answer this question accurately. Could yo
                         "content": prompt
                     }
                 ],
-                model="llama-3.1-8b-instant",  # Current fast model
-                max_tokens=1024,
-                temperature=0.1,
-                top_p=0.9,
+                model=model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                top_p=top_p,
                 stream=False
             )
             
@@ -471,18 +500,24 @@ Answer: I don't have enough context to answer this question accurately. Could yo
             
         except Exception as e:
             logger.error(f"Groq API call failed: {str(e)}")
-            return "I apologize, but I'm experiencing technical difficulties. Please try again in a moment."
+            return "I apologize, but I'm experiencing technical difficulties with the Groq API. Please try again in a moment."
     
     def _call_databricks_llm(self, prompt: str) -> str:
         """Call Databricks LLM API to generate response"""
         try:
+            databricks_config = self.models_config.get('databricks', {})
+            endpoint = databricks_config.get('llm_endpoint', 'databricks-mixtral-8x7b-instruct')
+            max_tokens = databricks_config.get('max_tokens', 2048)
+            temperature = databricks_config.get('temperature', 0.1)
+            top_p = databricks_config.get('top_p', 0.9)
+            
             response = self.deploy_client.predict(
-                endpoint=self.llm_config['name'],
+                endpoint=endpoint,
                 inputs={
                     "prompt": prompt,
-                    "max_tokens": self.llm_config['max_tokens'],
-                    "temperature": self.llm_config['temperature'],
-                    "top_p": self.llm_config['top_p']
+                    "max_tokens": max_tokens,
+                    "temperature": temperature,
+                    "top_p": top_p
                 }
             )
             
@@ -496,11 +531,17 @@ Answer: I don't have enough context to answer this question accurately. Could yo
                 
         except Exception as e:
             logger.error(f"Databricks LLM generation failed: {str(e)}")
-            return "I apologize, but I'm unable to generate a response at the moment. Please try again later."
+            return "I apologize, but I'm unable to generate a response using Databricks at the moment. Please try again later."
     
     def _call_mock_llm(self, prompt: str) -> str:
         """Fallback mock LLM response"""
-        return f"Mock response - Groq API not available. Query was: {prompt.split('Question:')[-1].split('Answer:')[0].strip() if 'Question:' in prompt else 'Unknown'}"
+        provider_status = f"Provider: {self.llm_provider}"
+        groq_status = "Groq: Available" if self.groq_client else "Groq: Not Available"
+        databricks_status = "Databricks: Available" if self.deploy_client else "Databricks: Not Available"
+        
+        query_part = prompt.split('Question:')[-1].split('Answer:')[0].strip() if 'Question:' in prompt else 'Unknown'
+        
+        return f"Mock response - No LLM providers available. {provider_status}, {groq_status}, {databricks_status}. Query was: {query_part}"
     
     def _calculate_confidence(self, response: str, context: str, query: str) -> float:
         """Calculate confidence score for the response"""

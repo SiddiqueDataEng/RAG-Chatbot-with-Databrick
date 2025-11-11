@@ -1,90 +1,85 @@
-# Enterprise RAG Chatbot Configuration
-project:
-  name: "enterprise-rag-chatbot"
-  version: "1.0.0"
-  description: "End-to-end RAG chatbot platform"
-
-# Data Configuration
+api:
+  host: 0.0.0.0
+  port: 5000
+  rate_limit: 100/minute
+  timeout: 30
+  workers: 4
 data:
-  raw_path: "data/raw/"
-  processed_path: "data/processed/"
-  features_path: "data/features/"
-  vector_db_path: "data/vector_db/"
-  
-  # Document processing settings
-  chunk_size: 512
   chunk_overlap: 50
+  chunk_size: 512
+  features_path: data/features/
   max_file_size_mb: 100
-  supported_formats: ["pdf", "docx", "txt", "md", "html"]
-
-# Model Configuration
+  processed_path: data/processed/
+  raw_path: data/raw/
+  supported_formats:
+  - pdf
+  - docx
+  - txt
+  - md
+  - html
+  vector_db_path: data/vector_db/
+evaluation:
+  alert_threshold: 0.1
+  ground_truth_path: data/evaluation/ground_truth.json
+  metrics:
+  - bleu
+  - rouge
+  - bert_score
+  - retrieval_accuracy
+  schedule: daily
+  test_questions_path: data/evaluation/test_questions.json
+infrastructure:
+  mlflow:
+    experiment_name: /Shared/rag-chatbot-experiments
+    tracking_uri: databricks
+  spark:
+    app_name: rag-data-processing
+    driver_memory: 2g
+    executor_memory: 4g
+    max_result_size: 2g
 models:
-  embedding:
-    name: "databricks-bge-large-en"
-    dimension: 1024
-    batch_size: 150
-    
-  llm:
-    name: "databricks-mixtral-8x7b-instruct"
+  databricks:
+    llm_endpoint: databricks-mixtral-8x7b-instruct
     max_tokens: 2048
     temperature: 0.1
     top_p: 0.9
-    
+  embedding:
+    batch_size: 150
+    dimension: 1024
+    name: databricks-bge-large-en
+  groq:
+    api_key: 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
+    max_tokens: 1024
+    model: llama-3.1-8b-instant
+    temperature: 0.1
+    top_p: 0.9
+  llm:
+    max_tokens: 2048
+    temperature: 0.1
+    top_p: 0.9
+  llm_provider: groq
   retrieval:
-    top_k: 5
-    similarity_threshold: 0.7
     rerank: true
-
-# Vector Database Configuration
-vector_db:
-  provider: "databricks"  # Options: databricks, chroma, pinecone
-  index_name: "rag_documents_index"
-  similarity_metric: "cosine"
-  
-# API Configuration
-api:
-  host: "0.0.0.0"
-  port: 8000
-  workers: 4
-  timeout: 30
-  rate_limit: "100/minute"
-  
-# Monitoring Configuration
+    similarity_threshold: 0.7
+    top_k: 5
 monitoring:
   enable_logging: true
-  log_level: "INFO"
-  metrics_endpoint: "/metrics"
-  health_check: "/health"
-  
-  # Quality thresholds
-  min_retrieval_score: 0.6
+  health_check: /health
+  log_level: INFO
   max_response_time: 5.0
+  metrics_endpoint: /metrics
   min_context_relevance: 0.7
-
-# Security Configuration
+  min_retrieval_score: 0.6
+project:
+  description: End-to-end RAG chatbot platform with Groq and Databricks support
+  name: enterprise-rag-chatbot
+  version: 1.0.0
 security:
-  enable_auth: true
-  api_key_required: true
-  cors_origins: ["*"]
-  
-# Infrastructure Configuration
-infrastructure:
-  spark:
-    app_name: "rag-data-processing"
-    executor_memory: "4g"
-    driver_memory: "2g"
-    max_result_size: "2g"
-    
-  mlflow:
-    tracking_uri: "databricks"
-    experiment_name: "/Shared/rag-chatbot-experiments"
-    
-# Evaluation Configuration
-evaluation:
-  test_questions_path: "data/evaluation/test_questions.json"
-  ground_truth_path: "data/evaluation/ground_truth.json"
-  metrics: ["bleu", "rouge", "bert_score", "retrieval_accuracy"]
-  
-  # Automated evaluation schedule
-  schedule: "daily"
-  alert_threshold: 0.1  # Alert if metrics drop by 10%
+  api_key_required: false
+  cors_origins:
+  - '*'
+  enable_auth: false
+vector_db:
+  index_name: rag_documents_index
+  provider: databricks
+  similarity_metric: cosine

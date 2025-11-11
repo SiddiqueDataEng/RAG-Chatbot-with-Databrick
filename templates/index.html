@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Chatbot - Enterprise AI Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .chat-container {
+            width: 90%;
+            max-width: 1200px;
+            height: 90vh;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            display: flex;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: #f8f9fa;
+            border-right: 1px solid #e9ecef;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .main-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: #343a40;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            opacity: 0.8;
+            font-size: 14px;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 15px 20px;
+            border-radius: 20px;
+            position: relative;
+        }
+
+        .message.user .message-content {
+            background: #007bff;
+            color: white;
+            border-bottom-right-radius: 5px;
+        }
+
+        .message.bot .message-content {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-bottom-left-radius: 5px;
+        }
+
+        .message-meta {
+            font-size: 12px;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+
+        .sources {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 3px solid #007bff;
+        }
+
+        .source-item {
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+
+        .source-score {
+            background: #007bff;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+        }
+
+        .input-area {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e9ecef;
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-area input {
+            flex: 1;
+            padding: 15px;
+            border: 1px solid #e9ecef;
+            border-radius: 25px;
+            font-size: 16px;
+            outline: none;
+        }
+
+        .input-area input:focus {
+            border-color: #007bff;
+        }
+
+        .send-btn {
+            padding: 15px 25px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+
+        .send-btn:hover {
+            background: #0056b3;
+        }
+
+        .send-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .system-info {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .system-info h3 {
+            margin-bottom: 10px;
+            color: #343a40;
+            font-size: 16px;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .status-active {
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .status-inactive {
+            color: #dc3545;
+            font-weight: bold;
+        }
+
+        .status-mock {
+            color: #ffc107;
+            font-weight: bold;
+        }
+
+        .metrics {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .metric-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #007bff;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .clear-btn {
+            padding: 10px 15px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: auto;
+        }
+
+        .clear-btn:hover {
+            background: #c82333;
+        }
+
+        @media (max-width: 768px) {
+            .chat-container {
+                width: 100%;
+                height: 100vh;
+                border-radius: 0;
+            }
+            
+            .sidebar {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="sidebar">
+            <div class="system-info">
+                <h3>🤖 System Status</h3>
+                <div class="status-item">
+                    <span>RAG Pipeline:</span>
+                    <span id="rag-status" class="status-inactive">Loading...</span>
+                </div>
+                <div class="status-item">
+                    <span>LLM Provider:</span>
+                    <span id="llm-provider" class="status-inactive">Loading...</span>
+                </div>
+                <div class="status-item">
+                    <span>Vector DB:</span>
+                    <span id="vector-status" class="status-mock">Mock Mode</span>
+                </div>
+                <div class="status-item">
+                    <span>Embeddings:</span>
+                    <span id="embedding-status" class="status-mock">Mock Mode</span>
+                </div>
+            </div>
+
+            <div class="metrics">
+                <h3>📊 Metrics</h3>
+                <div class="metric-item">
+                    <span>Total Queries:</span>
+                    <span id="total-queries">0</span>
+                </div>
+                <div class="metric-item">
+                    <span>Avg Response Time:</span>
+                    <span id="avg-response-time">0.0s</span>
+                </div>
+                <div class="metric-item">
+                    <span>Avg Confidence:</span>
+                    <span id="avg-confidence">0.0</span>
+                </div>
+                <div class="metric-item">
+                    <span>Uptime:</span>
+                    <span id="uptime">00:00:00</span>
+                </div>
+            </div>
+
+            <button class="clear-btn" onclick="clearHistory()">🗑️ Clear History</button>
+        </div>
+
+        <div class="main-chat">
+            <div class="header">
+                <h1>🤖 RAG Chatbot</h1>
+                <p>Enterprise AI Assistant powered by Retrieval Augmented Generation</p>
+            </div>
+
+            <div class="chat-messages" id="chat-messages">
+                <div class="message bot">
+                    <div class="message-content">
+                        <div>👋 Hello! I'm your RAG-powered AI assistant. I can help you with questions about machine learning, data science, and more. Ask me anything!</div>
+                        <div class="message-meta">System initialized</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <div>Processing your question...</div>
+            </div>
+
+            <div class="input-area">
+                <input type="text" id="user-input" placeholder="Ask me anything about ML, AI, or data science..." onkeypress="handleKeyPress(event)">
+                <button class="send-btn" id="send-btn" onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let sessionId = 'web_session_' + Date.now();
+
+        // Initialize the interface
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSystemInfo();
+            loadMetrics();
+            
+            // Update metrics every 30 seconds
+            setInterval(loadMetrics, 30000);
+        });
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('user-input');
+            const message = input.value.trim();
+            
+            if (!message) return;
+
+            // Disable input and show loading
+            input.disabled = true;
+            document.getElementById('send-btn').disabled = true;
+            document.getElementById('loading').style.display = 'block';
+
+            // Add user message to chat
+            addMessage(message, 'user');
+            input.value = '';
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        session_id: sessionId
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Add bot response
+                    addBotMessage(data);
+                    
+                    // Update metrics
+                    loadMetrics();
+                } else {
+                    addMessage('Sorry, I encountered an error: ' + data.error, 'bot');
+                }
+            } catch (error) {
+                addMessage('Sorry, I encountered a network error. Please try again.', 'bot');
+                console.error('Error:', error);
+            } finally {
+                // Re-enable input
+                input.disabled = false;
+                document.getElementById('send-btn').disabled = false;
+                document.getElementById('loading').style.display = 'none';
+                input.focus();
+            }
+        }
+
+        function addMessage(content, sender) {
+            const messagesContainer = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            
+            messageDiv.innerHTML = `
+                <div class="message-content">
+                    <div>${content}</div>
+                    <div class="message-meta">${timestamp}</div>
+                </div>
+            `;
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function addBotMessage(data) {
+            const messagesContainer = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message bot';
+            
+            const timestamp = new Date().toLocaleTimeString();
+            
+            let sourcesHtml = '';
+            if (data.sources && data.sources.length > 0) {
+                sourcesHtml = '<div class="sources"><strong>📚 Sources:</strong>';
+                data.sources.forEach(source => {
+                    sourcesHtml += `
+                        <div class="source-item">
+                            <span class="source-score">${(source.score * 100).toFixed(1)}%</span>
+                            <strong>${source.document}</strong>: ${source.content}
+                        </div>
+                    `;
+                });
+                sourcesHtml += '</div>';
+            }
+            
+            messageDiv.innerHTML = `
+                <div class="message-content">
+                    <div>${data.response}</div>
+                    ${sourcesHtml}
+                    <div class="message-meta">
+                        ${timestamp} • Confidence: ${(data.confidence * 100).toFixed(1)}% • 
+                        Response time: ${data.processing_time.toFixed(3)}s
+                    </div>
+                </div>
+            `;
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        async function loadSystemInfo() {
+            try {
+                const response = await fetch('/api/system_info');
+                const data = await response.json();
+                
+                // Update status indicators
+                document.getElementById('rag-status').textContent = data.rag_pipeline_status === 'initialized' ? 'Active' : 'Inactive';
+                document.getElementById('rag-status').className = data.rag_pipeline_status === 'initialized' ? 'status-active' : 'status-inactive';
+                
+                document.getElementById('llm-provider').textContent = data.current_provider.toUpperCase();
+                document.getElementById('llm-provider').className = data.groq_status === 'active' || data.databricks_status === 'active' ? 'status-active' : 'status-mock';
+                
+            } catch (error) {
+                console.error('Failed to load system info:', error);
+            }
+        }
+
+        async function loadMetrics() {
+            try {
+                const response = await fetch('/api/metrics');
+                const data = await response.json();
+                
+                document.getElementById('total-queries').textContent = data.total_queries || 0;
+                document.getElementById('avg-response-time').textContent = (data.avg_response_time || 0).toFixed(3) + 's';
+                document.getElementById('avg-confidence').textContent = (data.avg_confidence || 0).toFixed(2);
+                document.getElementById('uptime').textContent = data.uptime_formatted || '00:00:00';
+                
+            } catch (error) {
+                console.error('Failed to load metrics:', error);
+            }
+        }
+
+        async function clearHistory() {
+            if (confirm('Are you sure you want to clear the chat history?')) {
+                try {
+                    await fetch('/api/clear_history', { method: 'POST' });
+                    
+                    // Clear the chat messages
+                    const messagesContainer = document.getElementById('chat-messages');
+                    messagesContainer.innerHTML = `
+                        <div class="message bot">
+                            <div class="message-content">
+                                <div>👋 Chat history cleared! How can I help you today?</div>
+                                <div class="message-meta">System message</div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Reset session
+                    sessionId = 'web_session_' + Date.now();
+                    
+                } catch (error) {
+                    console.error('Failed to clear history:', error);
+                    alert('Failed to clear history. Please try again.');
+                }
+            }
+        }
+    </script>
+</body>
+</html>
